@@ -80,9 +80,13 @@ module Actionable
       attr_reader :gem_codes
 
       # Count some of {Actionable::Action::GEM_FAILURE_CODES} as expected
-      # outcomes. +:invalid_input+ counts for an action whose input has a
-      # required field; +:invalid_output+ for one whose output has a required
-      # field. Defaults to none, so an adopter opts in.
+      # outcomes. +:invalid_input+ counts for an action with a fixed input
+      # that has a required field, or a discriminated input ({Action.input_for})
+      # with no +default+ shape or with a shape that has a required field.
+      # +:invalid_output+ counts when any output schema a run can be held to
+      # has a required field: the success +output+, or a {Action.skips} /
+      # {Action.fails} block's schema (decision D23). Defaults to none, so an
+      # adopter opts in.
       #
       # @param codes [Array<Symbol, String>]
       # @raise [ArgumentError] for a code the gem never emits

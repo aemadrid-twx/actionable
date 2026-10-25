@@ -1164,7 +1164,9 @@ module Actionable
     # _@param_ `code`
     def self.allows_failure_code?: ((Symbol | String) code) -> bool
 
-    # Every {.fails} declaration, keyed by code, as +{message:, metadata:}+.
+    # Every {.fails} declaration, keyed by code, as +{message:, metadata:}+,
+    # plus +:output_schema+ (the code's output class, as
+    # {.failure_output_schema} returns it) when the declaration has a block.
     def self.failure_declarations: () -> ::Hash[Symbol, ::Hash[Symbol, Object]]
 
     # Declare one skip code this action can end with, and the metadata a skip
@@ -1234,11 +1236,13 @@ module Actionable
     def self.allows_skip_code?: ((Symbol | String) code) -> bool
 
     # Every {.skips} declaration, keyed by code, as +{message:, metadata:}+
-    # (decision D21).
+    # (decision D21), plus +:output_schema+ (the code's output class, as
+    # {.skip_output_schema} returns it) when the declaration has a block.
     def self.skip_declarations: () -> ::Hash[Symbol, ::Hash[Symbol, Object]]
 
-    # Declare a step. The step type is inferred from +target+ (a Symbol or
-    # String names an instance method — a {Steps::Method}).
+    # Declare a step. The step type is inferred from +target+: a Symbol or
+    # String names an instance method (a {Steps::Method}); an action class
+    # runs that action nested (a {Steps::Action}, taking +:input+ / +:expose+).
     # 
     # Redeclaring a step of the same type and name (here or in a subclass)
     # replaces the earlier declaration's options in place: the last
@@ -1247,10 +1251,10 @@ module Actionable
     # 
     # _@param_ `target` — the step target
     # 
-    # _@param_ `options` — step options (e.g. +:if+, +:unless+)
+    # _@param_ `options` — step options (e.g. +:if+, +:unless+, and for an action class +:input+ / +:expose+)
     # 
     # _@return_ — the updated step set
-    def self.step: ((Symbol | String) target, **Object options) -> ::Set[Steps::Base]
+    def self.step: ((Symbol | String | singleton(Actionable::Action)) target, **Object options) -> ::Set[Steps::Base]
 
     # Lifecycle hooks that run after the main steps when the run succeeds.
     def self.success_hooks: () -> ::Set[Steps::Base]
@@ -1360,11 +1364,15 @@ module Actionable
     # Under typed outcomes the result is an instance of the action's own
     # result class for its outcome (decision D23).
     # 
+    # A positional argument that isn't an input-schema instance (a plain
+    # Hash included) is ignored when an input schema is declared, so pass a
+    # Hash as +**params+.
+    # 
     # _@param_ `args` — positional arguments: a single input-schema instance, or (free-form) whatever the constructor takes
     # 
     # _@param_ `kwargs` — keyword arguments: the input fields, or (free-form) whatever the constructor takes
     # 
-    # _@return_ — the run's {Success} or {Failure}
+    # _@return_ — the run's {Success}, {Failure} or {Skipped}
     def self.run: (*Object args, **Object kwargs) -> Result
 
     # Run the action once per item in +enumerable+, collecting the per-item
@@ -2186,14 +2194,18 @@ module Actionable
     end
   end
 
-  # A read-only map of every named action class, keyed by class name (decision
-  # D11). {Action} registers each subclass through its +inherited+ hook;
-  # anonymous subclasses (which have no name) are skipped. Used for discovery
+  # A map of every named action class, keyed by class name (decision D11).
+  # {Action} registers each subclass through its +inherited+ hook; anonymous
+  # subclasses (which have no name) are skipped. Callers treat it as read-only,
+  # but it is not frozen: {#register} is public (the hook calls it), and
+  # nothing removes an entry. Used for discovery
   # and tooling — e.g. sweeping all actions to generate RBS.
   class Registry
     def initialize: () -> void
 
-    # Register an action class under its name. No-op for anonymous classes.
+    # Register an action class under its name, replacing any class already
+    # registered by that name. No-op for anonymous classes. Called by
+    # +Action.inherited+; public for that reason, not for callers.
     # 
     # _@param_ `klass` — the action subclass
     def register: (Class klass) -> self

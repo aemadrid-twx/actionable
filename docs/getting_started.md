@@ -359,13 +359,23 @@ Probe.describe.key?(:output)        # => true
 `Probe.describe_text` reuses FieldStruct's own field summaries for the
 input/output lines:
 
-```
-Probe (measure: none)
-  Input: (free-form)
-  Output:
-    count (Integer, required) — accepts in (Array | Range)
-  Steps:
-    - compute (method)
+<!-- doctest -->
+```ruby
+class Probe < Actionable::Action
+  output { required :count, :integer }
+  step :compute
+  def compute = @count = 1
+end
+
+text = Probe.describe_text.sub(Probe.name, 'Probe') # the doc spec nests Probe in a module
+text == <<~TEXT.chomp # => true
+  Probe (measure: none)
+    Input: (free-form)
+    Output:
+      count (Integer, required) — accepts in (Array | Range), base (Integer)
+    Steps:
+      - compute (method)
+TEXT
 ```
 
 ### When things go wrong — error → meaning → fix
@@ -589,15 +599,19 @@ loading, so those adapter methods are declared whether or not you require the
 adapter.
 
 If your app runs a type checker, generate RBS for your actions' dynamic `.run`
-and output accessors:
+and output accessors, one file per action (USAGE "Base actions" explains why
+the shared ancestor declarations in each file are fine):
 
 ```ruby
 # lib/tasks/actionable_rbs.rake
 namespace :actionable do
   task rbs: :environment do
     classes = [Billing::SettleInvoice, Billing::ChargeCard]
-    File.write('sig/actions.rbs',
-               classes.map { |k| Actionable::RBS.generate(k) }.join("\n"))
+    classes.each do |klass|
+      path = File.join('sig/actions', "#{klass.name.underscore}.rbs") # sig/actions/billing/settle_invoice.rbs
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, Actionable::RBS.generate(klass))
+    end
   end
 end
 ```

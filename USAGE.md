@@ -28,21 +28,65 @@ bad.ok?      # => false
 ```
 
 Every result carries `code`, `message`, `errors`, `output`, and `history`.
+Only a `Failure` or a `Skipped` also carries `metadata` (the per-code metadata
+of [Declared failures](#declared-failures) / [Declared skips](#declared-skips),
+`{}` when the code isn't declared); `Success#metadata` raises `NoMethodError`,
+so check `respond_to?(:metadata)` (or the outcome) before reading it off a
+result of unknown outcome.
+
 `status` is the outcome as a Symbol (`:success`, `:failure` or `:skipped`);
-`code` is the specific reason. A `Success` defaults its `code` to `:success`, so
-branch on `code` for failures and skips, and on `status` (or the predicates)
-for the outcome:
+`code` is the specific reason. A `Success` defaults its `code` to `:success`, a
+`Failure` to `:error` and a `Skipped` to `:skipped`, so branch on `code` for
+failures and skips, and on `status` (or the predicates) for the outcome:
 
 <!-- doctest -->
 ```ruby
 Actionable::Success.new.code                 # => :success
+Actionable::Failure.new.code                 # => :error
+Actionable::Skipped.new.code                 # => :skipped
 Actionable::Success.new.status               # => :success
 Actionable::Failure.new(code: :nope).status  # => :failure
 Actionable::Skipped.new(code: :later).status # => :skipped
+Actionable::Failure.new.metadata             # => {}
+Actionable::Success.new.respond_to?(:metadata) # => false
 ```
 
 Predicates: `success?`/`successful?`, `failure?`/`failed?`, `skipped?`, and `ok?`
 (≡ `!failure?`). `to_s`/`inspect` are compact, field-sorted, and deterministic.
+
+**Pattern matching.** A result is a FieldStruct, so `case … in` matches on its
+fields: `code`, `message`, `output` and `history`, plus `metadata` on a
+`Failure` or `Skipped`. A typed `output` matches as a nested pattern. `errors`
+and `status` are methods, not fields, so they are **not** pattern keys: a
+pattern naming either never matches. Match the outcome by class
+(`in Actionable::Failure(code:)`) or by `code`:
+
+<!-- doctest -->
+```ruby
+class Total < Actionable::Action
+  output { required :total, :integer }
+  step :go
+  def go = @total = 3
+end
+
+summarize = lambda do |result|
+  case result
+  in {code: :success, output: {total:}} then "total #{total}"
+  in Actionable::Failure(code: :refused, metadata: {kind:}) then "refused (#{kind})"
+  in {code:} then "other: #{code}"
+  end
+end
+
+summarize.call(Total.run) # => "total 3"
+summarize.call(Actionable::Failure.new(code: :refused, metadata: {kind: :rejected})) # => "refused (rejected)"
+summarize.call(Actionable::Skipped.new(code: :later)) # => "other: later"
+
+matched = case Total.run
+          in {status: :success} then true
+          else false
+          end
+matched # => false
+```
 
 ## Steps
 
@@ -295,7 +339,9 @@ never reads them. Your app gives the keys their meaning. A `fail` or `fail_with`
 with a declared code carries its metadata as `result.metadata`, and its declared
 message when the call gives none. `declared_failures` reads the declarations
 back as `{code => metadata}`, and `failure_declarations` as
-`{code => {message:, metadata:}}`:
+`{code => {message:, metadata:}}`, plus an `:output_schema` key (the code's
+output class) on an entry whose `fails` has a block (see
+[Typed outcomes](#typed-outcomes)):
 
 <!-- doctest -->
 ```ruby
@@ -357,7 +403,8 @@ with, so skips get the same contract as failures (decision D21). The metadata is
 neutral, as with `fails`. A `skip` or `skip!` with a declared code
 carries its metadata as `result.metadata`, and its declared message when the
 call gives none. `declared_skips` reads the declarations back as
-`{code => metadata}`, and `skip_declarations` as `{code => {message:, metadata:}}`:
+`{code => metadata}`, and `skip_declarations` as `{code => {message:, metadata:}}`,
+plus `:output_schema` when the `skips` has a block, as for failures:
 
 <!-- doctest -->
 ```ruby
@@ -416,7 +463,9 @@ again for a subclass.
 
 A block on `skips` or `fails` declares the output a result with that code
 carries, in the same FieldStruct DSL as `output`. `skip_output_schema(code)` and
-`failure_output_schema(code)` read it back, and `describe` shows its fields.
+`failure_output_schema(code)` read it back (it is also the `:output_schema` of
+the code's `skip_declarations` / `failure_declarations` entry), and `describe`
+shows its fields.
 Under typed outcomes, a failure takes its output from the `output:` keyword of
 `fail` / `fail!` (and of `fail_with` / `fail_with!`); every other keyword is
 still an error:
@@ -449,6 +498,11 @@ failed.class         # => ActivateKey::Failure
 failed.output.field  # => "id"
 failed.errors[:id]   # => ["is negative"]
 ActivateKey.run(id: 2).class # => ActivateKey::Success
+invalid = ActivateKey.run
+invalid.code         # => :invalid_input
+invalid.output       # => {}
+ActivateKey.failure_declarations[:invalid].keys # => [:message, :metadata, :output_schema]
+ActivateKey.failure_output_schema(:invalid).equal?(ActivateKey.failure_declarations[:invalid][:output_schema]) # => true
 ```
 
 The rules:
@@ -462,8 +516,11 @@ The rules:
   ends the run as `invalid_output`, because `note:` was never passed.
 - **A code without one** carries an empty output under typed outcomes. Without
   them it keeps the old best-effort capture into the success schema. The
-  failures the gem builds (`invalid_input`, `invalid_output`) keep their
-  output either way, because the invalid struct is what explains them.
+  failures the gem builds ignore both rules and look the same with or without
+  typed outcomes: an `invalid_output` failure's `output` is the invalid output
+  struct (what explains it, alongside `errors`), and an `invalid_input`
+  failure's `output` is always `{}`, since no step ran; its `errors` name the
+  bad input fields.
 - **Output with nowhere to go is refused.** Under typed outcomes, output keywords
   on a code without a schema raise `Actionable::DefinitionError`, naming the
   code and asking for a `fails :code do … end` (or `skips`) schema. `output:`
@@ -533,6 +590,7 @@ result = NeedsTotal.run
 result.failure?       # => true
 result.code           # => :invalid_output
 result.errors[:total] # => ["is required"]
+result.output.valid?  # => false
 ```
 
 `errors` is FieldStruct's own collection, so alongside the per-field
@@ -568,12 +626,64 @@ end
 
 Double.run(n: '21').output.doubled # => 42
 Double.run.code                    # => :invalid_input
+Double.run.output                  # => {}
 ```
 
 A missing or uncoercible required input yields `Failure(:invalid_input)` without
-running any steps. `input` with no block reads the declared schema, like `output`. An already-built input instance can be passed instead of
-keyword arguments. With no `input` block, `.run`'s arguments go to the
-constructor (the free-form path).
+running any steps; its `errors` name the bad fields and its `output` is `{}`.
+`input` with no block reads the declared schema, like `output`. An already-built
+input instance can be passed instead of keyword arguments. With no `input`
+block, `.run`'s arguments go to the constructor (the free-form path).
+
+**Pass keywords, not a positional Hash.** With an `input` block, `.run` reads
+its keyword arguments, or a single positional argument only when it is an
+instance of the input schema. Any other positional argument, a Hash included,
+is **silently ignored**: `.run({'n' => 21})` or `.run({n: 21})` builds the input
+from no keywords at all, so the run ends `:invalid_input` with every required
+field reported `"is required"`, and nothing points at the Hash. Splat a Hash
+you hold (`.run(**params)`; string keys work, as for any FieldStruct), or build
+the input first (`.run(Double.input.new(params))`):
+
+<!-- doctest -->
+```ruby
+class Double < Actionable::Action
+  input  { required :n, :integer }
+  output { required :doubled, :integer }
+  step :go
+  def go = @doubled = input.n * 2
+end
+
+params = {'n' => '21'}
+Double.run(params).errors.to_h        # => {n: ['is required']}
+Double.run(**params).output.doubled   # => 42
+Double.run(Double.input.new(params)).output.doubled # => 42
+```
+
+**`unknown_attributes :raise` raises out of `.run`.** By default an input
+keyword the schema doesn't declare is dropped. FieldStruct's
+`unknown_attributes :raise` inside the `input` block makes it raise
+`FieldStruct::UnknownAttributeError` from `.run` itself, not a
+`Failure(:invalid_input)`, and the message names the input schema's anonymous
+class (`unknown attribute(s) for #<Class:0x…>: :bogus`), not the action. Rescue
+it around `.run`, or leave the default and let unknown keys drop:
+
+<!-- doctest -->
+```ruby
+class Strict < Actionable::Action
+  input do
+    unknown_attributes :raise
+    required :n, :integer
+  end
+  step :go
+  def go = nil
+end
+
+begin
+  Strict.run(n: 1, bogus: true)
+rescue FieldStruct::UnknownAttributeError => e
+  e.message.end_with?(': :bogus') # => true
+end
+```
 
 An input field can be a FieldStruct class. `.run` takes a Hash for it (coerced
 like any nested struct) or an instance. If the nested struct is invalid, the
@@ -789,6 +899,10 @@ history.steps.map(&:name)   # => [:work]
 history.steps.first.section # => :main
 ```
 
+Each entry's `section` is where it ran: `:main` for a step, then the hook
+phase, `:success`, `:failure` or `:skip`, and `:always`. (`after_commit` hooks
+run after the run is over and are not recorded.)
+
 `measure :none` (the default) records nothing. `measure :sampled, rate: 0.1`
 records a fraction of runs (rate between 0 and 1) for low-overhead production
 observability — when a run is sampled in, it measures fully and cascades into its
@@ -820,8 +934,11 @@ end
 Actionable.registry[Registered.name].equal?(Registered) # => true
 ```
 
-`Actionable.registry` is read-only for callers: `[]`, `each`, `keys`, `values`,
-`size`, `empty?`.
+Callers read the registry with `[]`, `each`, `keys`, `values`, `size` and
+`empty?`. It is not frozen: `Registry#register(klass)` is public, because
+`Action.inherited` calls it, so code can add a class (or replace one under the
+same name; an anonymous class is a no-op), and nothing ever removes one. Treat
+it as read-only and let subclassing do the registering.
 
 ## Introspection — `Action.describe`
 
@@ -848,15 +965,25 @@ Probe.describe[:measure]            # => :none
 multi-line summary instead of a Hash. The input/output field lines reuse
 FieldStruct's own `Metadata#describe` (each field's type, required-ness, and the
 options its type accepts). Declared failures, declared skips and hook sections
-are listed only when there are any:
+are listed only when there are any (the text has no trailing newline):
 
-```
-Probe (measure: none)
-  Input: (free-form)
-  Output:
-    count (Integer, required) — accepts in (Array | Range)
-  Steps:
-    - compute (method)
+<!-- doctest -->
+```ruby
+class Probe < Actionable::Action
+  output { required :count, :integer }
+  step :compute
+  def compute = @count = 1
+end
+
+text = Probe.describe_text.sub(Probe.name, 'Probe') # the doc spec nests Probe in a module
+text == <<~TEXT.chomp # => true
+  Probe (measure: none)
+    Input: (free-form)
+    Output:
+      count (Integer, required) — accepts in (Array | Range), base (Integer)
+    Steps:
+      - compute (method)
+TEXT
 ```
 
 With `fails :refused, 'the card was refused', kind: :rejected` declared, a
@@ -926,8 +1053,11 @@ cryptic `NoMethodError`:
 
 ## Rails adapter
 
-`require 'actionable/rails'` (never loaded by the core). CI runs it on
-ActiveRecord 7.1 and 8.x; only `after_commit` needs 7.2:
+`require 'actionable/rails'` (never loaded by the core, and not loaded for you
+when ActiveRecord is: require it yourself, e.g. in an initializer). Without it,
+`transactional` is a plain `NoMethodError` (`undefined method 'transactional'`)
+at class definition. CI runs it on ActiveRecord 7.1 and 8.x; only
+`after_commit` needs 7.2:
 
 - `transactional model: :invoice` (or a class) wraps the run in
   `model.transaction`. A success commits; a recorded failure or a raised
@@ -1024,7 +1154,7 @@ Settings, all on `Actionable::Coverage`:
 | `root` | `Actionable::Action` | Report its named descendants that have steps. Anonymous classes and actions with no steps (abstract bases) are left out, and so is a class whose name no longer resolves to it. |
 | `include_prefixes` / `exclude_prefixes` | `[]` | Name filters. A String matches as a prefix, a Regexp by `match?`. |
 | `loader` | `nil` | Called before the actions are listed. A class that was never loaded can't be reported, so a Rails host eager-loads here. |
-| `gem_codes` | `[]` | Gem codes to expect too. `:invalid_input` counts for an action whose input has a required field, `:invalid_output` for one whose output does. |
+| `gem_codes` | `[]` | Gem codes to expect too (any other code raises `ArgumentError`). `:invalid_input` counts for an action whose fixed `input` has a required field, or whose `input_for` has no `default` or a shape with a required field. `:invalid_output` counts when any output schema a run can be held to has a required field: the `output`, or a `skips` / `fails` block's schema. |
 | `only_observed` | `false` | Report only actions with at least one real run, so a targeted run doesn't flag every action it never touched. |
 | `baseline` | `nil` | Path to a committed JSON or YAML baseline of known gaps (below). |
 | `new_gap_hint` | `DEFAULT_NEW_GAP_HINT` | The advice after "New untested outcomes." in the mismatch message. The default, `'Write a spec that reaches each one, or add it to the baseline:'`, offers both fixes; a host whose baseline only shrinks sets its own. |
@@ -1318,8 +1448,12 @@ module Codes
 end
 ```
 
-Write each action's RBS to its own file: the ancestor declarations repeat,
-byte-identical, in every file that shares a base, and RBS merges them. They also
+Write each action's RBS to its own file (for example `sig/actions/<path>.rbs`,
+as the rake task in [`docs/getting_started.md`](docs/getting_started.md#types-for-steep--solargraph-rbs)
+does), so regenerating one action rewrites one file. The ancestor declarations
+repeat, byte-identical, in every file that shares a base, and RBS merges them
+(it does the same when they are concatenated into one file, which also
+validates). They also
 merge with a base's own signature when you generate or write that too, as long
 as it names the same superclass. A namespace that is a class opens as `class`
 (without a superclass), not `module`. An anonymous ancestor is skipped: the

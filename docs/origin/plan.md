@@ -305,6 +305,15 @@ The adapter auto-loads when ActiveRecord is already defined; otherwise it is an
 explicit require. Calling `transactional` without the adapter raises a clear,
 actionable error at class-definition time.
 
+**Note (as shipped, 2026-10-25):** neither of the last two sentences holds. The
+adapter never auto-loads: nothing in the core or `lib/actionable-rb.rb` requires
+it, ActiveRecord defined or not, so an app must `require 'actionable/rails'`
+itself (the Railtie is loaded *by* the adapter, not the other way round).
+Calling `transactional` without it is a plain `NoMethodError` ("undefined
+method 'transactional'") at class definition, not a custom error. (`after_commit`
+does raise a `DefinitionError` when ActiveRecord is missing or older than 7.2,
+but only once the adapter is loaded.)
+
 ### D9. Transactions (Rails adapter only)
 
 ```ruby
@@ -324,6 +333,12 @@ subclasses; overridable.
 `Actionable::History` records, per step: section (`:main` / `:success` / `:failure`
 / `:always`), name, start time, duration, result code, and the nested action's
 history (for Action steps). Timing uses a monotonic clock corrected to wall-clock.
+
+**Note (as shipped, 2026-10-25):** D17 added the `:skip` outcome and its
+`on_skip` hooks, which record under a fifth section, `:skip`
+(`Runner#run_lifecycle`), so the sections are `:main` / `:success` /
+`:failure` / `:skip` / `:always`. `after_commit` hooks (Rails adapter) are not
+recorded.
 
 `measure :all` enables recording; `measure :none` (default) disables it for zero
 overhead. `History#as_json` / `#to_json` serialize via Oj. `History#took` sums step

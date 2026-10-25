@@ -2,6 +2,47 @@
 
 ## [Unreleased]
 
+### Documentation
+
+Gaps found by docs-site writers and reviewers. No library behaviour changes;
+the `lib/` edits are YARD comments only.
+
+- USAGE "Results": only `Failure` / `Skipped` have `metadata`
+  (`Success#metadata` raises `NoMethodError`); a `Failure`'s default code is
+  `:error`; new "Pattern matching" paragraph (keys are `code`, `message`,
+  `output`, `history`, plus `metadata`; `errors` and `status` are not keys).
+  Doctested.
+- USAGE "Input": a positional Hash passed to `.run` on an action with an
+  `input` block is silently ignored (the run ends `:invalid_input`, every
+  required field "is required"); pass `**params` or an input-schema instance.
+  `unknown_attributes :raise` raises `FieldStruct::UnknownAttributeError` out of
+  `.run`, naming the anonymous schema class. Both doctested.
+- USAGE "Typed outcomes" said the gem's `invalid_input` / `invalid_output`
+  failures "keep their output". Measured: `invalid_output` carries the invalid
+  output struct and `invalid_input` always has `output == {}`, with or without
+  typed outcomes. Now says so, doctested.
+- `describe_text` samples in USAGE and `docs/getting_started.md` were stale
+  (FieldStruct now lists `base (Integer)`); both are now doctested against the
+  real output.
+- `failure_declarations` / `skip_declarations` entries carry `:output_schema`
+  when the declaration has a block (USAGE and YARD).
+- YARD: `Action.step` takes an action class too; `.run` can return a
+  `Skipped`, ignores a positional non-schema Hash, and can raise
+  `UnknownAttributeError`. `Coverage.gem_codes=` and USAGE's `gem_codes` row
+  describe every case the code counts (discriminated input, typed-outcome
+  schemas). The Rails adapter's header comment no longer claims the Railtie
+  loads it.
+- USAGE "Registry" no longer calls the registry read-only: `Registry#register`
+  is public.
+- USAGE "Rails adapter": the adapter is never auto-loaded, and `transactional`
+  without it is a plain `NoMethodError`. USAGE "History" lists the history
+  sections, `:skip` included.
+- RBS for your actions: `docs/getting_started.md`'s rake task now writes one
+  file per action, matching USAGE "Base actions" (a single concatenated file
+  also validates; both checked with `rbs validate`).
+- `docs/origin/plan.md`: dated "Note (as shipped)" under D8 (no auto-load,
+  `NoMethodError`) and D10 (the `:skip` history section).
+
 ## [1.10.0] - 2026-10-25
 
 Ruby 3.3 or newer is now required; the library itself is unchanged, so on
