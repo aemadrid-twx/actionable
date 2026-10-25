@@ -10,8 +10,8 @@ module Actionable
   # One implementation over a Prism AST, shared by the first-run check
   # ({Action.run} raises a {DefinitionError}) and the opt-in RuboCop cop
   # (+require: actionable/rubocop+). Self-contained on purpose: the cop loads
-  # it without the rest of the gem. Prism is optional (Ruby 3.2 ships without
-  # it), so nothing here requires it at load time; see {.prism?}.
+  # it without the rest of the gem. Prism 1.0+ is optional (Ruby 3.3 bundles
+  # 0.19, which doesn't count), so nothing here requires it at load time; see {.prism?}.
   #
   # A verb call (receiver-less, or on +self+) is fine when it is:
   # - in tail position: the method body's last statement, or the last
@@ -84,9 +84,10 @@ module Actionable
     @files_lock = Mutex.new
 
     class << self
-      # Whether Prism can be loaded (it is a default gem from Ruby 3.3, and a
-      # dependency of RuboCop). Checked once. Prism before 1.0 counts as
-      # missing: its node API differs.
+      # Whether Prism 1.0 or newer can be loaded. Ruby 3.4+ bundles it; Ruby
+      # 3.3 bundles 0.19, so there it takes the +prism+ gem (RuboCop depends
+      # on it). Checked once. Prism before 1.0 counts as missing: its node
+      # API differs.
       #
       # @return [Boolean]
       def prism?
