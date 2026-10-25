@@ -7,6 +7,11 @@
 Gaps found by docs-site writers and reviewers. No library behaviour changes;
 the `lib/` edits are YARD comments only.
 
+- The first-run verb-position check needs Prism 1.0+. USAGE blamed "Ruby 3.2"
+  for skipping it; on Ruby 3.3 (now the floor) the bundled Prism is 0.19, so
+  the check is silently off unless the bundle has `gem 'prism', '>= 1.0'`
+  (RuboCop pulls it in). Measured on Ruby 3.3.12 in a clean bundle:
+  `Actionable::VerbPosition.prism?` is false. Ruby 3.4+ bundles Prism 1.x.
 - USAGE "Results": only `Failure` / `Skipped` have `metadata`
   (`Success#metadata` raises `NoMethodError`); a `Failure`'s default code is
   `:error`; new "Pattern matching" paragraph (keys are `code`, `message`,

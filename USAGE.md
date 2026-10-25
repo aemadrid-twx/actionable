@@ -253,9 +253,12 @@ source with Prism. A misplaced verb raises `DefinitionError` naming the action,
 method, `file:line` and verb, with the fix ("use fail! to stop here, or make it
 the method's last expression"). The check runs once per class (a later run pays
 nothing for it), and a failing check raises on every run until fixed. It is
-skipped where it can't be done: no Prism (Ruby 3.2 without the `prism` gem; it
-is a default gem from 3.3), or no readable source (a method from `eval` or
-`define_method`). A step naming an `alias_method` is checked against the
+skipped where it can't be done: no Prism 1.0 or newer, or no readable source (a method from `eval` or
+`define_method`). **On Ruby 3.3** the bundled Prism is 0.19, which counts as
+missing, so in a bundle without the `prism` gem the check is silently off. Add
+`gem 'prism', '>= 1.0'` to your Gemfile to get it (RuboCop already depends on
+it, so a bundle with RuboCop has it). Ruby 3.4 and newer bundle Prism 1.x.
+`Actionable::VerbPosition.prism?` tells you whether the check can run. A step naming an `alias_method` is checked against the
 original `def` (the cop doesn't follow aliases). A module `prepend`ed over a step method hides the class's own
 `def` from the check: the wrapper is what runs first, so only its body is read
 (the cop still reads the class's `def`).
