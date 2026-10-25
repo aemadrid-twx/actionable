@@ -1,16 +1,20 @@
 # frozen_string_literal: true
 
 module Actionable
-  # A read-only map of every named action class, keyed by class name (decision
-  # D11). {Action} registers each subclass through its +inherited+ hook;
-  # anonymous subclasses (which have no name) are skipped. Used for discovery
+  # A map of every named action class, keyed by class name (decision D11).
+  # {Action} registers each subclass through its +inherited+ hook; anonymous
+  # subclasses (which have no name) are skipped. Callers treat it as read-only,
+  # but it is not frozen: {#register} is public (the hook calls it), and
+  # nothing removes an entry. Used for discovery
   # and tooling — e.g. sweeping all actions to generate RBS.
   class Registry
     def initialize
       @map = {}
     end
 
-    # Register an action class under its name. No-op for anonymous classes.
+    # Register an action class under its name, replacing any class already
+    # registered by that name. No-op for anonymous classes. Called by
+    # +Action.inherited+; public for that reason, not for callers.
     #
     # @param klass [Class] the action subclass
     # @return [self]

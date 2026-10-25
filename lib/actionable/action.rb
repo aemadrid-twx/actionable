@@ -191,7 +191,9 @@ module Actionable
         failure_declarations.empty? || failure_declarations.key?(code) || GEM_FAILURE_CODES.include?(code)
       end
 
-      # Every {.fails} declaration, keyed by code, as +{message:, metadata:}+.
+      # Every {.fails} declaration, keyed by code, as +{message:, metadata:}+,
+      # plus +:output_schema+ (the code's output class, as
+      # {.failure_output_schema} returns it) when the declaration has a block.
       # @return [Hash{Symbol=>Hash{Symbol=>Object}}]
       def failure_declarations
         @failure_declarations ||= {}
@@ -288,23 +290,28 @@ module Actionable
       end
 
       # Every {.skips} declaration, keyed by code, as +{message:, metadata:}+
-      # (decision D21).
+      # (decision D21), plus +:output_schema+ (the code's output class, as
+      # {.skip_output_schema} returns it) when the declaration has a block.
       #
       # @return [Hash{Symbol=>Hash{Symbol=>Object}}]
       def skip_declarations
         @skip_declarations ||= {}
       end
 
-      # Declare a step. The step type is inferred from +target+ (a Symbol or
-      # String names an instance method — a {Steps::Method}).
+      # Declare a step. The step type is inferred from +target+: a Symbol or
+      # String names an instance method (a {Steps::Method}); an action class
+      # runs that action nested (a {Steps::Action}, taking +:input+ / +:expose+).
       #
       # Redeclaring a step of the same type and name (here or in a subclass)
       # replaces the earlier declaration's options in place: the last
       # declaration wins and keeps the original position. A subclass's
       # override never changes the parent's steps.
       #
-      # @param target [Symbol, String] the step target
-      # @param options [Object] step options (e.g. +:if+, +:unless+)
+      # @param target [Symbol, String, Class<Actionable::Action>] the step target
+      # @param options [Object] step options (e.g. +:if+, +:unless+, and for an
+      #   action class +:input+ / +:expose+)
+      # @raise [ArgumentError] when +target+ is neither a Symbol/String nor an
+      #   {Actionable::Action} subclass
       # @return [Set<Steps::Base>] the updated step set
       def step(target, **options)
         declare(steps, Steps.build(target, **options))
@@ -506,7 +513,13 @@ module Actionable
       #   instance, or (free-form) whatever the constructor takes
       # @param kwargs [Object] keyword arguments: the input fields, or
       #   (free-form) whatever the constructor takes
-      # @return [Result] the run's {Success} or {Failure}
+      # A positional argument that isn't an input-schema instance (a plain
+      # Hash included) is ignored when an input schema is declared, so pass a
+      # Hash as +**params+.
+      #
+      # @return [Result] the run's {Success}, {Failure} or {Skipped}
+      # @raise [FieldStruct::UnknownAttributeError] when the input schema
+      #   declares +unknown_attributes :raise+ and an undeclared keyword is given
       def run(*args, **kwargs)
         typed_result(run_untyped(args, kwargs))
       end
