@@ -25,6 +25,8 @@
 Gaps found by docs-site writers and reviewers. No library behaviour changes;
 the `lib/` edits are YARD comments only.
 
+- The README shows the actionable logo ("Rows & Steps": three bars stepping
+  forward on a marigold tile), from `docs/assets/actionable-mark.svg`.
 - The first-run verb-position check needs Prism 1.0+. USAGE blamed "Ruby 3.2"
   for skipping it; on Ruby 3.3 (now the floor) the bundled Prism is 0.19, so
   the check is silently off unless the bundle has `gem 'prism', '>= 1.0'`
