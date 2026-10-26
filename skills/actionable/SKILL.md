@@ -166,6 +166,12 @@ failures, hooks, measure, and transaction config (or `describe_text` for a reada
   failure is discarded; a genuine exception propagates. Declared `retry:`
   metadata is ignored unless the action calls `honor_retry_metadata`; then
   `retry: true` retries (failures and skips) and `retry: false` doesn't.
+- **Tracing (`require 'actionable/otel'`):** one OpenTelemetry span per run
+  (`Checkout.run`) plus one per step/hook (`Checkout/reserve`); failure = error
+  status, skip = not an error; input/output values are never recorded, and an
+  escaping exception is recorded by class only (`Actionable::Otel.exception_details
+  = :full` adds message and backtrace). Needs the app to add `opentelemetry-api`.
+  `Actionable::Otel.step_spans = false` keeps only the run spans.
 - **Prod observability:** `measure :sampled, rate: 0.1` records history on a
   fraction of runs (between `:all` and `:none`).
 

@@ -721,6 +721,31 @@ comparing to a gem `Success` with `==` breaks on opt-in.
 _Deferred: whether Steep narrows `Success | Skipped | Failure` on `success?` (it may need
 `is_a?` / `case`)._
 
+### D24. OpenTelemetry adapter (added 2026-10)
+
+`require 'actionable/otel'` (never loaded by the core, invariants 4 & 6) traces
+runs through `opentelemetry-api`, a soft dependency: not in the gemspec, and
+requiring the adapter without it raises a `LoadError` saying what to add. The
+tracer is `OpenTelemetry.tracer_provider.tracer('actionable', VERSION)`.
+
+- One span per `Action.run` (prepended on `Action`'s singleton class, so an
+  `:invalid_input` run and every nested or `run_each` run is traced), named
+  `<Action>.run`, with `actionable.action` / `.outcome` / `.code`. A failure
+  sets error status with the code; a skip does not; an escaping exception is
+  recorded once, on the run span, by class only unless
+  `Actionable::Otel.exception_details = :full`, and re-raised (D4 unchanged).
+  Its message and backtrace can carry input values, the same reason values
+  are never attributes.
+- One child span per executed step and hook (prepended on `Runner#record`, the
+  seam History already uses; no core change), named `<Action>/<step>`, with
+  `actionable.step` / `.section` and `.code` when the step recorded the result.
+  `Actionable::Otel.step_spans = false` turns them off process-wide.
+- Input/output values, messages, errors and metadata are never attributes.
+- Independent of `measure` (D10): spans follow OpenTelemetry's sampler.
+
+Tested in its own CI lane (`gemfiles/otel.gemfile`, SDK in-memory exporter),
+like the job backends; the default lane checks the missing-gem error.
+
 ---
 
 ## Slice plan

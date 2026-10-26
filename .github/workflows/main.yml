@@ -105,6 +105,34 @@ jobs:
     - name: Run the suite
       run: bundle exec rspec
 
+  # The full suite with opentelemetry-api + opentelemetry-sdk, so
+  # spec/actionable/otel/tracing_spec.rb runs (against the SDK in-memory span
+  # exporter) instead of skipping as it does in `build`, where the
+  # missing-gem LoadError spec runs instead.
+  otel:
+    runs-on: [self-hosted, afs-ci]
+    name: otel (OpenTelemetry)
+    env:
+      BUNDLE_GEMFILE: gemfiles/otel.gemfile
+    steps:
+    - uses: actions/checkout@v4
+    # Same mise setup as the first job (see its comment).
+    - name: Set up Ruby (mise)
+      uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+      with:
+        version: 2026.10.3
+        sha256: 8d48bc510b7d844fad0bc7156c0855c2a1e7230c51e498a7f6b63b021f8b57c5
+        cache: false
+        mise_toml: |
+          [tools]
+          ruby = "4.0"
+    - name: Install gems
+      run: bundle install --jobs 4
+    - name: OpenTelemetry loads (so its specs run, not skip)
+      run: bundle exec ruby -e 'require "opentelemetry/sdk"'
+    - name: Run the suite
+      run: bundle exec rspec
+
   # The full suite on ActiveRecord 7.1: transactional keeps working and
   # after_commit refuses to declare (it needs 7.2). AR 7.1 is tested on 3.3.
   activerecord-7-1:
@@ -136,11 +164,12 @@ jobs:
   ci:
     runs-on: [self-hosted, afs-ci]
     name: ci
-    needs: [build, jobs, activerecord-7-1]
+    needs: [build, jobs, otel, activerecord-7-1]
     if: always()
     steps:
     - name: Require every job to pass
       run: |
         test "${{ needs.build.result }}" = "success"
         test "${{ needs.jobs.result }}" = "success"
+        test "${{ needs.otel.result }}" = "success"
         test "${{ needs.activerecord-7-1.result }}" = "success"
