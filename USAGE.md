@@ -967,8 +967,10 @@ Probe.describe[:measure]            # => :none
 `Action.describe_text` renders the same information as a human/agent-readable
 multi-line summary instead of a Hash. The input/output field lines reuse
 FieldStruct's own `Metadata#describe` (each field's type, required-ness, and the
-options its type accepts). Declared failures, declared skips and hook sections
-are listed only when there are any (the text has no trailing newline):
+options its type accepts, so the option list follows your FieldStruct version:
+`strict (TrueClass | FalseClass)` below appears from FieldStruct 0.13). Declared
+failures, declared skips and hook sections are listed only when there are any
+(the text has no trailing newline):
 
 <!-- doctest -->
 ```ruby
@@ -983,7 +985,7 @@ text == <<~TEXT.chomp # => true
   Probe (measure: none)
     Input: (free-form)
     Output:
-      count (Integer, required) — accepts in (Array | Range), base (Integer)
+      count (Integer, required) — accepts in (Array | Range), base (Integer), strict (TrueClass | FalseClass)
     Steps:
       - compute (method)
 TEXT
