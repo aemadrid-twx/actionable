@@ -1,3 +1,5 @@
+<img src="docs/assets/actionable-mark.svg" alt="actionable logo" width="64">
+
 # Actionable
 
 Typed, composable Ruby **service objects**. Subclass `Actionable::Action`,
