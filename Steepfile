@@ -6,9 +6,10 @@
 # revisited after Tier 1).
 #
 # The adapters a client calls (actionable/rails' transactional and
-# after_commit, actionable/rspec's matchers and stubs, actionable/job) are in
-# scope: sord generates their sigs from YARD like the core's. Their bodies call
-# ActiveRecord and rspec-mocks, which have no sigs in this lane, so they add
+# after_commit, actionable/rspec's matchers and stubs, actionable/job,
+# actionable/otel) are in scope: sord generates their sigs from YARD like the
+# core's. Their bodies call ActiveRecord, rspec-mocks and OpenTelemetry, which
+# have no sigs in this lane, so they add
 # report-only problems. Still out of scope, as they have no sigs (.yardopts
 # excludes them): ProxyValidator (ActiveModel-typed), the Railtie,
 # actionable/rspec/coverage, and the recording-verb analyzer and its RuboCop

@@ -1286,6 +1286,77 @@ Actionable::Job.disposition(Reindex.run, honor_retry: true)     # => :retry
 Actionable::Job.disposition(Reindex.run)                        # => :ack
 ```
 
+## OpenTelemetry
+
+`require 'actionable/otel'` traces every run as an OpenTelemetry span. Nothing
+loads OpenTelemetry unless you require it. actionable-rb does not depend on
+`opentelemetry-api`, so add it yourself, with the SDK and an exporter to send
+the spans somewhere; without the gem the require raises a `LoadError` that
+says so.
+
+```ruby
+# Gemfile
+gem 'opentelemetry-api'
+gem 'opentelemetry-sdk'
+gem 'opentelemetry-exporter-otlp'
+
+# config/initializers/opentelemetry.rb (or wherever you boot)
+require 'opentelemetry/sdk'
+require 'actionable/otel'
+
+OpenTelemetry::SDK.configure { |c| c.service_name = 'billing' }
+```
+
+Each `.run` (including each item of `run_each` and each nested action step) is
+one span, named after the action, from the tracer
+`OpenTelemetry.tracer_provider.tracer('actionable', Actionable::VERSION)`.
+Every step and lifecycle hook that runs gets a child span (`Checkout/reserve`);
+a step skipped by its `if:` / `unless:` guard gets none. A nested action's run
+span sits under the parent's step span, so a trace for a failed `Checkout`
+reads:
+
+```
+Checkout.run           outcome=failure code=card_declined   status=ERROR(card_declined)
+  Checkout/reserve     section=main
+  Checkout/ChargeCard  section=main code=card_declined
+    ChargeCard.run     outcome=failure code=card_declined   status=ERROR(card_declined)
+      ChargeCard/authorize  section=main code=card_declined
+  Checkout/release     section=failure
+```
+
+| Attribute | On | Value |
+|---|---|---|
+| `actionable.action` | run and step spans | the action's class name (`Actionable::Action` for an anonymous class) |
+| `actionable.outcome` | run spans | `success`, `failure` or `skipped` |
+| `actionable.code` | run spans; a step span when that step recorded the result | the result code, as a string |
+| `actionable.step` | step spans | the method name, or the nested action's class name |
+| `actionable.section` | step spans | `main`, `success`, `failure`, `skip` or `always` |
+
+- **A failure is an error.** The run span's status is set to error with the
+  code as its description (`:invalid_input` included: a run that fails its
+  input still gets a span). No exception event is recorded for it, because
+  nothing was raised.
+- **A skip is not an error.** Its status stays unset.
+- **An exception that escapes the run** is recorded on the step and run spans
+  (an `exception` event, error status) and re-raised unchanged, as always. That
+  run span has no outcome or code, since the run never produced a result.
+- **Input and output values are never recorded.** Neither are messages,
+  errors or metadata. They often hold card numbers, tokens or personal data;
+  add your own attributes in a step if you need them.
+- **Sampling is OpenTelemetry's.** Spans are emitted whatever `measure` says
+  (`measure` only governs `history`); use the SDK's sampler to keep a fraction
+  of traces.
+- **Fewer spans:** `Actionable::Otel.step_spans = false` (process-wide, e.g. in
+  the initializer) keeps the run spans and drops the step spans;
+  `Actionable::Otel.step_spans?` reads it back.
+- A stubbed run (`stub_actionable_success` and friends) emits no span, and
+  `after_commit` hooks (Rails adapter) get no step span (a nested action used
+  as one still gets its run span).
+
+These examples are not doctested: the core suite runs without OpenTelemetry. CI
+checks the adapter against the real SDK's in-memory exporter in its own lane
+(`gemfiles/otel.gemfile`).
+
 ## RBS for your actions
 
 ```ruby

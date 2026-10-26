@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### Added
+
+- Optional OpenTelemetry adapter, `require 'actionable/otel'` (D24). Every
+  run is a span named after the action (`Checkout.run`) with
+  `actionable.action`, `actionable.outcome` and `actionable.code`; every step
+  and hook that runs is a child span (`Checkout/reserve`) with
+  `actionable.step` and `actionable.section`; a nested action's run span nests
+  under its step span. A failure sets the span status to error with the code;
+  a skip does not. Input and output values are never recorded.
+  `Actionable::Otel.step_spans = false` keeps only the run spans.
+  `opentelemetry-api` is a soft dependency: actionable-rb does not depend on
+  it, and requiring the adapter without it raises a `LoadError` saying what to
+  add. New `otel` CI lane (`gemfiles/otel.gemfile`) runs the suite with the
+  SDK's in-memory exporter.
+
 ### Documentation
 
 Gaps found by docs-site writers and reviewers. No library behaviour changes;
