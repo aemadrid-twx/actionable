@@ -372,7 +372,7 @@ text == <<~TEXT.chomp # => true
   Probe (measure: none)
     Input: (free-form)
     Output:
-      count (Integer, required) — accepts in (Array | Range), base (Integer)
+      count (Integer, required) — accepts in (Array | Range), base (Integer), strict (TrueClass | FalseClass)
     Steps:
       - compute (method)
 TEXT

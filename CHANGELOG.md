@@ -48,6 +48,19 @@ the `lib/` edits are YARD comments only.
 - `docs/origin/plan.md`: dated "Note (as shipped)" under D8 (no auto-load,
   `NoMethodError`) and D10 (the `:skip` history section).
 
+### Tests / CI
+
+- **CI runs on field_struct 0.16.0.** The development pin in `Gemfile`,
+  `gemfiles/types.gemfile` and `gemfiles/activerecord_7_1.gemfile` (`jobs`
+  inherits `Gemfile`) moves from tag `v0.12.0` to `v0.16.0`, so the suite
+  tracks the current field_struct release instead of the floor. The runtime
+  requirement stays `field_struct >= 0.12`: the suite passes unchanged on
+  0.12.0, and on 0.13.0 through 0.16.0 only the `describe_text` doctests in
+  USAGE and `docs/getting_started.md` differed, because FieldStruct 0.13 added
+  `strict:` to `:integer` and its `describe` lists it. Those samples now show
+  the 0.16 output, and USAGE notes that the option list follows the
+  FieldStruct version.
+
 ## [1.10.0] - 2026-10-25
 
 Ruby 3.3 or newer is now required; the library itself is unchanged, so on
