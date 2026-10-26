@@ -10,7 +10,10 @@
   and hook that runs is a child span (`Checkout/reserve`) with
   `actionable.step` and `actionable.section`; a nested action's run span nests
   under its step span. A failure sets the span status to error with the code;
-  a skip does not. Input and output values are never recorded.
+  a skip does not. Input and output values are never recorded; an escaping
+  exception is recorded once, on the run span, by class only
+  (`Actionable::Otel.exception_details = :full` adds its message and backtrace).
+  Step spans carry `actionable.step.kind` (`method`, `action`, `case`).
   `Actionable::Otel.step_spans = false` keeps only the run spans.
   `opentelemetry-api` is a soft dependency: actionable-rb does not depend on
   it, and requiring the adapter without it raises a `LoadError` saying what to

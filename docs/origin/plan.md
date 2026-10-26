@@ -732,7 +732,10 @@ tracer is `OpenTelemetry.tracer_provider.tracer('actionable', VERSION)`.
   `:invalid_input` run and every nested or `run_each` run is traced), named
   `<Action>.run`, with `actionable.action` / `.outcome` / `.code`. A failure
   sets error status with the code; a skip does not; an escaping exception is
-  recorded by the span and re-raised (D4 unchanged).
+  recorded once, on the run span, by class only unless
+  `Actionable::Otel.exception_details = :full`, and re-raised (D4 unchanged).
+  Its message and backtrace can carry input values, the same reason values
+  are never attributes.
 - One child span per executed step and hook (prepended on `Runner#record`, the
   seam History already uses; no core change), named `<Action>/<step>`, with
   `actionable.step` / `.section` and `.code` when the step recorded the result.

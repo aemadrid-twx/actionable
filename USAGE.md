@@ -1308,12 +1308,15 @@ OpenTelemetry::SDK.configure { |c| c.service_name = 'billing' }
 ```
 
 Each `.run` (including each item of `run_each` and each nested action step) is
-one span, named after the action, from the tracer
-`OpenTelemetry.tracer_provider.tracer('actionable', Actionable::VERSION)`.
-Every step and lifecycle hook that runs gets a child span (`Checkout/reserve`);
-a step skipped by its `if:` / `unless:` guard gets none. A nested action's run
-span sits under the parent's step span, so a trace for a failed `Checkout`
-reads:
+one span, named after the action, from the tracer named `actionable` (version
+`Actionable::VERSION`). Every step and lifecycle hook that runs gets a child
+span (`Checkout/reserve`); a step skipped by its `if:` / `unless:` guard gets
+none. A `case_step`'s span is named after its value method (`Router/mode`);
+the branch it picks runs inside that span without one of its own. A nested
+action's run span sits under the parent's step span when it runs on the same
+thread and fiber (OpenTelemetry's context is per fiber, so a nested run in a
+`Thread.new`, or an `after_commit` hook that fires after `.run` returned,
+starts its own trace). A trace for a failed `Checkout` reads:
 
 ```
 Checkout.run           outcome=failure code=card_declined   status=ERROR(card_declined)
@@ -1330,25 +1333,36 @@ Checkout.run           outcome=failure code=card_declined   status=ERROR(card_de
 | `actionable.outcome` | run spans | `success`, `failure` or `skipped` |
 | `actionable.code` | run spans; a step span when that step recorded the result | the result code, as a string |
 | `actionable.step` | step spans | the method name, or the nested action's class name |
+| `actionable.step.kind` | step spans | `method`, `action` or `case` |
 | `actionable.section` | step spans | `main`, `success`, `failure`, `skip` or `always` |
 
 - **A failure is an error.** The run span's status is set to error with the
   code as its description (`:invalid_input` included: a run that fails its
   input still gets a span). No exception event is recorded for it, because
-  nothing was raised.
+  nothing was raised. Declared failures (`card_declined`, `not_found`) count
+  toward your APM's error rate; filter on `actionable.code` to separate them
+  from exceptions.
 - **A skip is not an error.** Its status stays unset.
-- **An exception that escapes the run** is recorded on the step and run spans
-  (an `exception` event, error status) and re-raised unchanged, as always. That
-  run span has no outcome or code, since the run never produced a result.
+- **An exception that escapes the run** is recorded once, on the run span, as
+  an `exception` event with only `exception.type`, and re-raised unchanged, as
+  always. The spans it passes through get error status. That run span has no
+  outcome or code, since `.run` never returned a result.
 - **Input and output values are never recorded.** Neither are messages,
   errors or metadata. They often hold card numbers, tokens or personal data;
-  add your own attributes in a step if you need them.
+  add your own attributes in a step if you need them. An exception's message
+  and backtrace can hold them too (`"card 4111… declined"`), which is why only
+  its class is recorded. `Actionable::Otel.exception_details = :full` records
+  the message and backtrace as well (OpenTelemetry's `record_exception`).
 - **Sampling is OpenTelemetry's.** Spans are emitted whatever `measure` says
   (`measure` only governs `history`); use the SDK's sampler to keep a fraction
   of traces.
 - **Fewer spans:** `Actionable::Otel.step_spans = false` (process-wide, e.g. in
   the initializer) keeps the run spans and drops the step spans;
   `Actionable::Otel.step_spans?` reads it back.
+- **Cost:** measured on a CPU-bound action with 10 spans per run (2 runs, 8
+  steps and hooks), the SDK adds about 5 µs per span, about 50 µs per run;
+  `step_spans = false` roughly halves that. Negligible next to a database
+  call; noticeable in a tight `run_each` over many thousands of items.
 - A stubbed run (`stub_actionable_success` and friends) emits no span, and
   `after_commit` hooks (Rails adapter) get no step span (a nested action used
   as one still gets its run span).
