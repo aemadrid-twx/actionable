@@ -113,8 +113,8 @@ result.invoice        # => same, via convenience delegation
   support file. The suite ends with a table of each action's never-reached
   outcomes; a stubbed result doesn't count. `Coverage.baseline = path` makes CI
   fail on a new gap or a stale entry (see USAGE, "Outcome coverage").
-- Trace runs in OpenTelemetry: `require 'actionable/otel'` (the app adds the
-  `opentelemetry-api` gem). One span per run, one per step; no input/output
+- Trace runs in OpenTelemetry: add the `actionable-otel` gem and
+  `require 'actionable/otel'`. One span per run, one per step; no input/output
   values are recorded, and an escaping exception only by class. See
   [USAGE, OpenTelemetry](USAGE.md#opentelemetry).
 - Profile a run: declare `measure :all` (or `:sampled, rate: 0.1` in prod), then

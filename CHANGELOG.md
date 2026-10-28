@@ -2,23 +2,17 @@
 
 ## [Unreleased]
 
-### Added
+### Removed
 
-- Optional OpenTelemetry adapter, `require 'actionable/otel'` (D24). Every
-  run is a span named after the action (`Checkout.run`) with
-  `actionable.action`, `actionable.outcome` and `actionable.code`; every step
-  and hook that runs is a child span (`Checkout/reserve`) with
-  `actionable.step` and `actionable.section`; a nested action's run span nests
-  under its step span. A failure sets the span status to error with the code;
-  a skip does not. Input and output values are never recorded; an escaping
-  exception is recorded once, on the run span, by class only
-  (`Actionable::Otel.exception_details = :full` adds its message and backtrace).
-  Step spans carry `actionable.step.kind` (`method`, `action`, `case`).
-  `Actionable::Otel.step_spans = false` keeps only the run spans.
-  `opentelemetry-api` is a soft dependency: actionable-rb does not depend on
-  it, and requiring the adapter without it raises a `LoadError` saying what to
-  add. New `otel` CI lane (`gemfiles/otel.gemfile`) runs the suite with the
-  SDK's in-memory exporter.
+- The OpenTelemetry adapter (`require 'actionable/otel'`, merged in #9 after
+  1.10.0) moves to its own gem, `actionable-otel`, in
+  github.com/aemadrid-twx/field_struct-adapters, history included. It was
+  never in a release: not on RubyGems (newest is 1.9.0) and not in the
+  `v1.10.0` tag. Its API and require path are unchanged; add
+  `gem 'actionable-otel'`, which declares `opentelemetry-api` itself, instead
+  of `gem 'opentelemetry-api'`. The adapter, its specs, the `otel` CI lane and
+  `gemfiles/otel.gemfile` are gone from this repo; README, USAGE, AGENTS and
+  the skill point at the new gem. <!-- upgrading: none -->
 
 ### Documentation
 
