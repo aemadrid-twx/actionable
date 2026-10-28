@@ -746,6 +746,13 @@ tracer is `OpenTelemetry.tracer_provider.tracer('actionable', VERSION)`.
 Tested in its own CI lane (`gemfiles/otel.gemfile`, SDK in-memory exporter),
 like the job backends; the default lane checks the missing-gem error.
 
+**Note (2026-10-27):** the adapter moved out of actionable-rb before any release,
+into the `actionable-otel` gem (github.com/aemadrid-twx/field_struct-adapters),
+history included. The design above is unchanged, except that the gem now
+declares `opentelemetry-api` instead of checking for it at require time, and
+the tracer's version is actionable-otel's. The require path is still
+`actionable/otel`.
+
 ---
 
 ## Slice plan

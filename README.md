@@ -480,12 +480,13 @@ propagate unchanged. An action that declares `honor_retry_metadata` lets the
 
 ## OpenTelemetry (optional)
 
-`require 'actionable/otel'` traces every run as a span named after the action
-(`Checkout.run`), with a child span per step and hook and nested actions nested
-underneath. Attributes carry the action, outcome, code and step name, never
-input or output values; a failure sets the span status to error, a skip does
-not. Bring your own `opentelemetry-api` (actionable-rb does not depend on it).
-See [USAGE](USAGE.md#opentelemetry).
+The [actionable-otel](https://github.com/aemadrid-twx/field_struct-adapters/tree/main/actionable-otel)
+gem traces every run as a span named after the action (`Checkout.run`), with a
+child span per step and hook and nested actions nested underneath. Add
+`gem 'actionable-otel'` and `require 'actionable/otel'`. Attributes carry the
+action, outcome, code and step name, never input or output values; a failure
+sets the span status to error, a skip does not. See
+[USAGE](USAGE.md#opentelemetry).
 
 ## Types (RBS)
 
